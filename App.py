@@ -63,51 +63,157 @@ def draw_visualization(canvas, x1, x2, y1, y2, points=None, centroid=None):
     width = canvas.winfo_width()
     height = canvas.winfo_height()
 
+    # Handle zero dimensions to avoid division errors
+    if x1 == x2 or y1 == y2:
+        return
+
+    # Set unit label
+    unit_label = "mm" if xyz_unit_var.get() == "Metric (mm)" else "in"
+
     # Normalize coordinates to fit canvas
-    part_width = x2 - x1
-    part_height = y2 - y1
-    scale_x = width / part_width
-    scale_y = height / part_height
-    scale = min(scale_x, scale_y)
+    part_width = abs(x2 - x1)
+    part_height = abs(y2 - y1)
 
-    normalized_x1 = 0
-    normalized_y1 = 0
-    normalized_x2 = (x2 - x1) * scale
-    normalized_y2 = (y2 - y1) * scale
+    # Calculate scaling factor to fit part inside canvas, leaving a margin
+    margin_ratio = 0.1  # 10% margin on all sides
+    available_width = width * (1 - 2 * margin_ratio)
+    available_height = height * (1 - 2 * margin_ratio)
 
-    # Draw rectangle
-    canvas.create_rectangle(normalized_x1, normalized_y1, normalized_x2, normalized_y2, outline="blue", width=2)
+    scale_x = available_width / part_width
+    scale_y = available_height / part_height
+    scale = min(scale_x, scale_y)  # Use the smallest scale to ensure the part fits
 
-    # Draw points
+    # Calculate offsets to center the part on the canvas with margin
+    margin_x = width * margin_ratio
+    margin_y = height * margin_ratio
+
+    # Offsets to properly align negative coordinates within the canvas
+    offset_x = margin_x - (min(x1, x2) * scale)
+    offset_y = margin_y - (min(y1, y2) * scale)
+
+    # Determine which shape to draw based on the selected type
+    shape = shape_var.get()
+
+    if shape == "Rectangle":
+        # Draw rectangle
+        normalized_x1 = offset_x + (x1 * scale)
+        normalized_y1 = offset_y + (y1 * scale)
+        normalized_x2 = offset_x + (x2 * scale)
+        normalized_y2 = offset_y + (y2 * scale)
+
+        canvas.create_rectangle(normalized_x1, normalized_y1, normalized_x2, normalized_y2, outline="blue", width=2)
+
+        # Calculate and draw the center point for the rectangle
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+
+        # Normalize center coordinates to fit canvas
+        normalized_center_x = offset_x + (center_x * scale)
+        normalized_center_y = offset_y + (center_y * scale)
+
+        # Draw the center point
+        canvas.create_oval(
+            normalized_center_x - 5, normalized_center_y - 5, normalized_center_x + 5, normalized_center_y + 5, fill="red"
+        )
+        canvas.create_text(normalized_center_x + 10, normalized_center_y, text="Center", anchor="w", fill="red")
+
+    elif shape == "Circle":
+        # Draw circle with its diameter
+        diameter = abs(x2 - x1)
+        if xyz_unit_var.get() == "Imperial (inches)":
+            diameter = convert_to_imperial(diameter)
+
+        # Calculate circle's center and radius
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        radius = (diameter / 2) * scale
+
+        # Normalize center coordinates to fit canvas
+        normalized_center_x = offset_x + (center_x * scale)
+        normalized_center_y = offset_y + (center_y * scale)
+
+        # Draw the circle
+        canvas.create_oval(
+            normalized_center_x - radius, normalized_center_y - radius,
+            normalized_center_x + radius, normalized_center_y + radius,
+            outline="blue", width=2
+        )
+
+        # Draw the center point
+        canvas.create_oval(
+            normalized_center_x - 5, normalized_center_y - 5, normalized_center_x + 5, normalized_center_y + 5, fill="red"
+        )
+        canvas.create_text(normalized_center_x + 10, normalized_center_y, text="Center", anchor="w", fill="red")
+
+        # Show the diameter label
+        canvas.create_text(normalized_center_x, normalized_center_y + radius + 20,
+                           text=f"Diameter: {diameter:.2f} {unit_label}", anchor="n", fill="blue")
+
+    # Draw zero point relative to the part's coordinates
+    zero_x = 0
+    zero_y = 0
+
+    # Normalize zero coordinates to fit canvas
+    normalized_zero_x = offset_x + (zero_x - x1) * scale
+    normalized_zero_y = offset_y + (zero_y - y1) * scale
+
+    # Draw the zero point
+    canvas.create_oval(
+        normalized_zero_x - 5, normalized_zero_y - 5, normalized_zero_x + 5, normalized_zero_y + 5, fill="black"
+    )
+    canvas.create_text(normalized_zero_x - 10, normalized_zero_y - 10, text="Zero Point", anchor="se", fill="black")
+
+    # Draw distances from edges if applicable
+    if xyz_unit_var.get() == "Imperial (inches)":
+        # Convert distances to imperial for display
+        part_width = convert_to_imperial(part_width)
+        part_height = convert_to_imperial(part_height)
+
+    if shape == "Rectangle":
+        # Display distances from edges for rectangles
+        canvas.create_text(normalized_x1, normalized_y1 - 20, text=f"Width: {part_width:.2f} {unit_label}", anchor="w", fill="blue")
+        canvas.create_text(normalized_x1, normalized_y1 - 40, text=f"Height: {part_height:.2f} {unit_label}", anchor="w", fill="blue")
+
+    # Draw specific location points (e.g., offsets or custom locations) if specified
     if points:
         for point in points:
             x, y = point
-            normalized_x = (x - x1) * scale
-            normalized_y = (y - y1) * scale
+            normalized_x = offset_x + (x * scale)
+            normalized_y = offset_y + (y * scale)
             canvas.create_oval(
                 normalized_x - 3, normalized_y - 3, normalized_x + 3, normalized_y + 3, fill="green"
             )
 
-    # Draw centroid
-    if centroid:
-        x, y = centroid
-        normalized_x = (x - x1) * scale
-        normalized_y = (y - y1) * scale
-        canvas.create_oval(
-            normalized_x - 5, normalized_y - 5, normalized_x + 5, normalized_y + 5, fill="red"
-        )
-        canvas.create_text(normalized_x + 10, normalized_y, text="Centroid", anchor="w", fill="red")
 
+
+
+
+def handle_canvas_resize(event, canvas):
+    try:
+        # Get current input values
+        x1 = float(x1_entry.get() or 0)
+        x2 = float(x2_entry.get() or 0)
+        y1 = float(y1_entry.get() or 0)
+        y2 = float(y2_entry.get() or 0)
+        points = []  # Optionally, include any points you want to draw again
+        centroid = None  # Optionally, include centroid if calculated
+        
+        # Redraw the visualization
+        draw_visualization(canvas, x1, x2, y1, y2, points=points, centroid=centroid)
+    except ValueError:
+        # Handle any invalid inputs gracefully during resize
+        pass
 
 # Calculation function
 def calculate():
     try:
         # Get input values including Z-axis
         shape = shape_var.get()
-        x1 = float(x1_entry.get())
-        x2 = float(x2_entry.get())
-        y1 = float(y1_entry.get())
-        y2 = float(y2_entry.get())
+        x1 = float(x1_entry.get() or 0)
+        x2 = float(x2_entry.get() or 0)
+        y1 = float(y1_entry.get() or 0)
+        y2 = float(y2_entry.get() or 0)
+
         
         # Provide default values for z1 and z2
         z1 = 0
@@ -343,6 +449,8 @@ remove_vertex_button = ttk.Button(polygon_frame, text="Remove Vertex", command=r
 # Canvas for visualization
 canvas = tk.Canvas(root, bg="white")
 canvas.grid(row=15, column=0, columnspan=2, pady=10, sticky="nsew")
+# Add this line directly after canvas creation
+canvas.bind("<Configure>", lambda event: handle_canvas_resize(event, canvas))
 
 # History
 history = []
