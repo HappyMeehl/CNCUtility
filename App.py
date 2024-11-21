@@ -108,8 +108,15 @@ def calculate():
         x2 = float(x2_entry.get())
         y1 = float(y1_entry.get())
         y2 = float(y2_entry.get())
-        z1 = float(z1_entry.get()) if z_axis_var.get() else 0
-        z2 = float(z2_entry.get()) if z_axis_var.get() else 0
+        
+        # Provide default values for z1 and z2
+        z1 = 0
+        z2 = 0
+
+        # Only use user inputs for z1 and z2 if the Z-axis is enabled
+        if z_axis_var.get():
+            z1 = float(z1_entry.get())
+            z2 = float(z2_entry.get())
 
         # Convert units if necessary
         if xyz_unit_var.get() == "Imperial (inches)":
@@ -117,6 +124,7 @@ def calculate():
 
         # Determine calculation type
         if shape == "Rectangle":
+            # Always pass z1 and z2 values, even if they're default to 0
             x_center, y_center, z_center = calculate_center_rectangle(x1, x2, y1, y2, z1, z2)
             result_text = f"Rectangle Center: X={x_center:.4f}, Y={y_center:.4f}, Z={z_center:.4f}"
             draw_visualization(canvas, x1, x2, y1, y2, centroid=(x_center, y_center))
@@ -127,12 +135,12 @@ def calculate():
 
         endmill_radius = shank_diameter / 2
 
-        # Determine calculation type
+        # Determine calculation type for specific location or shapes
         if specific_location_var.get():
             offset_right = float(offset_right_entry.get())
             offset_top = float(offset_top_entry.get())
 
-            # Convert offset units
+            # Convert offset units if necessary
             if xyz_unit_var.get() == "Imperial (inches)":
                 offset_right, offset_top = map(convert_to_metric, (offset_right, offset_top))
 
@@ -142,10 +150,11 @@ def calculate():
             result_text = f"Custom Location: X={x_loc:.4f}, Y={y_loc:.4f}"
             draw_visualization(canvas, x1, x2, y1, y2, points=[(x_loc, y_loc)])
         elif shape == "Rectangle":
-            x_center, y_center = calculate_center_rectangle(x1, x2, y1, y2)
+            # Pass z1 and z2 values, even if they're default to 0
+            x_center, y_center, z_center = calculate_center_rectangle(x1, x2, y1, y2, z1, z2)
             x_center -= endmill_radius
             y_center -= endmill_radius
-            result_text = f"Rectangle Center: X={x_center:.4f}, Y={y_center:.4f}"
+            result_text = f"Rectangle Center: X={x_center:.4f}, Y={y_center:.4f}, Z={z_center:.4f}"
             draw_visualization(canvas, x1, x2, y1, y2, centroid=(x_center, y_center))
         elif shape == "Circle":
             x_center, y_center = calculate_center_circle(x1, x2, y1, y2)
@@ -170,6 +179,7 @@ def calculate():
         else:
             raise ValueError("Unsupported shape")
 
+        # Update the result label and add to history
         result_label.config(text=result_text)
         add_to_history(result_text)
 
